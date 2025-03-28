@@ -1,3 +1,4 @@
+import asyncio
 import os
 import shutil
 import uuid
@@ -70,7 +71,7 @@ async def new_ticket_channel(ticket_channel, user, ctx, interaction):
         title="🎫 - Ticket | Spectre Store",
         description=f"Olá {interaction.user.mention}, seja bem-vindo ao seu ticket!\nTicket criado com sucesso! Em alguns instantes nossa equipe irá lhe atender.",
         footer="Spectre Store © 2025",
-        color="#840077"
+        color="#840077" # PURPLE
     )
 
     remember_button = create_button(discord.ButtonStyle.green, '🕒 Lembrar')
@@ -95,7 +96,7 @@ async def new_ticket_channel(ticket_channel, user, ctx, interaction):
             title='Ticket Fechado',
             description=f'✅ **Aberto por:** {user.mention}\n⏰ **Data:** {get_ticket_creation_date(interaction_btn.channel)}\n\n❌ **Fechado por:** {interaction_btn.user.mention}\n⏰ **Data:** {datetime.now(timezone('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M:%S')}\n\n📰 **Transcript \t ⤵️**',
             footer='Spectre Store © 2025',
-            color='#BF1622',
+            color='#F91607', # RED
         )
 
         await notification_channel.send(embed=embed)
@@ -186,7 +187,7 @@ async def on_member_join(member):
         title='Entrada no servidor',
         description=f'{member.mention} | {member.name}\n**Criação:** {days_since_creation} dias atrás',
         footer='Spectre Store © 2025',
-        color='#1FFB2F'
+        color='#1FFB2F' # GREEN
     )
 
     channel = bot.get_channel(1354141477650825448)
@@ -199,7 +200,7 @@ async def on_member_remove(member):
         title='Saída do servidor',
         description=f'{member.mention} | {member.name}',
         footer='Spectre Store © 2025',
-        color='#BF1622'
+        color='#F91607' # RED
     )
 
     channel = bot.get_channel(1354316225404076163)
@@ -216,7 +217,7 @@ async def on_message_edit(before, after):
         title='Mensagem editada',
         description=f'**Antes:** ```{before.content}```\n**Depois:** ```{after.content}```\n\n**ID da mensagem:** {before.id}\n**Canal:** {before.channel.mention}\n**ID do usuário:** {before.author.id}',
         footer='Spectre Store © 2025',
-        color='#FB9800'
+        color='#FB9800' # ORANGE
     )
     embed.set_author(name=before.author.display_name, icon_url=before.author.avatar.url)
 
@@ -290,6 +291,42 @@ async def ticket(ctx):
     view.add_item(media_creator_button)
 
     await ctx.send(embed=embed, view=view)
+
+
+products = {
+    'plus': ['🟢・SPECTRE PLUS',
+             '**Compatibilidade:**\n🇧🇷 Compativel com Windows 10 / Windows 11.\n🇧🇷 Processador : Intel / Amd\n\n**┍Aimbot**\n・Aimbot\n・Recoil Control\n・Draw Fov\n・Draw Crosshair\n・Visibility Check\n・Smoothing Aim\n\n**┍Visuals**\n・Box (3D Box, 2D Box)\n・Team Check\n・Remove Dormant\n・Health\n・Snaplines\n・Distance\n・Skeleton\n・Head Circle\n・Max Distance\n・Visible Color\n・Non Visible Color\n\n**┍Misc**\n・Stream Mode\n・Watermark\n\n```\nR$25.00 - 1 Dia\nR$110.00 - 1 Semana\nR$180.00 - 1 Mês\nR$260.00 - Lifetime```',
+             'https://media.discordapp.net/attachments/1354984897470533812/1354985577253965884/plus.jpg?ex=67e74828&is=67e5f6a8&hm=feaed8433c0b4c0c882da5fcb02fb4478523bf72d4eced1ea633ceb179ab5e27&=&format=webp&width=864&height=864'
+             ]
+}
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def auto_msg(ctx, name: str, interval: int):
+    global auto_message_task, send_auto_message
+
+    try:
+        embed = create_embed(
+            title=products[name][0],
+            description=products[name][1],
+            image_url=products[name][2],
+            footer='Spectre Store © 2025',
+            color='#840077'
+        )
+
+        await ctx.send(embed=embed)
+
+        async def send_auto_message():
+            while True:
+                await ctx.channel.purge(limit=5)
+                await ctx.send(embed=embed)
+                await asyncio.sleep(interval)
+    except Exception as error:
+        await ctx.send(f'Ocorreu um erro: {str(error)}', ephemeral=True)
+
+    # Start the task
+    auto_message_task = bot.loop.create_task(send_auto_message())
+    await ctx.send(f'Auto message task started with an interval of {interval} seconds.')
 
 
 

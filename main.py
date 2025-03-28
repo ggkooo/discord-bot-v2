@@ -1,4 +1,8 @@
 import os
+import shutil
+import uuid
+import time
+import aiohttp
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 from pytz import timezone
@@ -52,9 +56,16 @@ async def create_ticket_channel(category, ctx, interaction, name):
 
     await interaction.response.send_message(f"✅ **Ticket criado com sucesso!**\n👉 Acesse o seu ticket: {ticket_channel.mention}", ephemeral=True)
 
-    await new_ticket_channel(ticket_channel, ctx, interaction)
+    await new_ticket_channel(ticket_channel, interaction.user, ctx, interaction)
 
-async def new_ticket_channel(ticket_channel, ctx, interaction):
+def get_ticket_creation_date(channel):
+    if channel.topic:
+        parts = channel.topic.split('|')
+        if len(parts) > 1 and 'Criado em:' in parts[1]:
+            return parts[1].split('Criado em:')[1].strip()
+    return None
+
+async def new_ticket_channel(ticket_channel, user, ctx, interaction):
     embed_ticket_opened = create_embed(
         title="🎫 - Ticket | Spectre Store",
         description=f"Olá {interaction.user.mention}, seja bem-vindo ao seu ticket!\nTicket criado com sucesso! Em alguns instantes nossa equipe irá lhe atender.",
@@ -65,12 +76,33 @@ async def new_ticket_channel(ticket_channel, ctx, interaction):
     remember_button = create_button(discord.ButtonStyle.green, '🕒 Lembrar')
     close_button = create_button(discord.ButtonStyle.red, '❌ Fechar')
 
-    def remember_callback(interaction):
-        interaction.response.send_message("Você clicou no botão de lembrar!", ephemeral=True)
+    async def remember_callback(interaction_btn):
+        try:
+            await user.send(f'🕒 **Lembrete:** Não se esqueça do seu ticket em aberto no servidor Spectre Store! {interaction_btn.channel.mention}')
+            await interaction_btn.response.send_message('Lembrete enviado no privado!', ephemeral=True)
+        except Exception as error:
+            await interaction_btn.followup.send(f'Ocorreu um erro: {str(error)}', ephemeral=True)
 
-    def close_callback(interaction):
-        interaction.response.send_message("Você clicou no botão de fechar!", ephemeral=True)
-        ticket_channel.delete()
+    async def close_callback(interaction_btn):
+        folder_path = await save_transcript(interaction_btn.channel)
+        zip_path = f"{folder_path}.zip"
+        shutil.make_archive(folder_path, 'zip', folder_path)
+
+        await interaction_btn.response.send_message('❌ **Ticket fechado!** Transcript salvo.', ephemeral=True)
+
+        notification_channel = bot.get_channel(1354318256474951785)
+        embed = create_embed(
+            title='Ticket Fechado',
+            description=f'✅ **Aberto por:** {user.mention}\n⏰ **Data:** {get_ticket_creation_date(interaction_btn.channel)}\n\n❌ **Fechado por:** {interaction_btn.user.mention}\n⏰ **Data:** {datetime.now(timezone('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M:%S')}\n\n📰 **Transcript \t ⤵️**',
+            footer='Spectre Store © 2025',
+            color='#BF1622',
+        )
+
+        await notification_channel.send(embed=embed)
+        await notification_channel.send(file=discord.File(zip_path))
+
+        time.sleep(3)
+        await interaction_btn.channel.delete()
 
     remember_button.callback = remember_callback
     close_button.callback = close_callback
@@ -79,7 +111,67 @@ async def new_ticket_channel(ticket_channel, ctx, interaction):
     view.add_item(remember_button)
     view.add_item(close_button)
 
-    await ticket_channel.send(f'{discord.utils.get(ctx.guild.roles, id=1241829059617619988)} {interaction.user.mention}', embed=embed_ticket_opened, view=view)
+    await ticket_channel.send(f'{discord.utils.get(ctx.guild.roles, id=1354298874008834182).mention} {interaction.user.mention}', embed=embed_ticket_opened, view=view)
+
+async def save_transcript(channel):
+    messages = [message async for message in channel.history(limit=None)]
+    messages.reverse()  # Reverse the order of messages
+
+    unique_id = uuid.uuid4()
+    folder_path = os.path.join('transcripts', f"transcript-{unique_id}")
+    os.makedirs(folder_path, exist_ok=True)
+    attachments_folder = os.path.join(folder_path, 'attachments')
+    os.makedirs(attachments_folder, exist_ok=True)
+
+    transcript = (f"<html>"
+                  f"<head>"
+                  f"<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" rel=\"stylesheet\" integrity=\"sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH\" crossorigin=\"anonymous\">"
+                  f"<style>"
+                  f".embed-card {{ max-width: 400px; margin: 10px 0; }}"
+                  f"</style>"
+                  f"</head>"
+                  f"<body>"
+                  f"<div class=\"container my-5\">"
+                  f"<h1>Transcript of {channel.name}</h1>"
+                  f"<ul class=\"list-unstyled\">")
+
+    async with aiohttp.ClientSession() as session:
+        for message in messages:
+            transcript += f"<li class=\"my-2\"><span class=\"me-2\"><img class=\"rounded-circle\" width=\"35px\" src=\"{message.author.avatar.url}\"></span><strong>{message.author.display_name}</strong>: {message.content}</li>"
+
+            # Include embeds
+            for embed in message.embeds:
+                color_hex = f"{embed.color.value:06x}"  # Convert color to hex
+                transcript += f"<li class=\"my-2\"><div class=\"card embed-card\" style=\"border-left: 5px solid #{color_hex};\">"
+                if embed.title:
+                    transcript += f"<div class=\"card-header\"><strong>{embed.title}</strong></div>"
+                if embed.description:
+                    transcript += f"<div class=\"card-body\">{embed.description}</div>"
+                if embed.footer:
+                    transcript += f"<div class=\"card-footer text-muted\">{embed.footer.text}</div>"
+                transcript += "</div></li>"
+
+            # Include attachments
+            for attachment in message.attachments:
+                attachment_id = uuid.uuid4()
+                attachment_extension = os.path.splitext(attachment.filename)[1]
+                attachment_path = os.path.join(attachments_folder, f"{attachment_id}{attachment_extension}")
+                async with session.get(attachment.url) as response:
+                    with open(attachment_path, 'wb') as f:
+                        f.write(await response.read())
+                if attachment_extension.lower() in ['.png', '.jpg', '.jpeg', '.gif']:
+                    transcript += f"<li class=\"my-2\"><strong>Attachment:</strong> <img src=\"{attachment_path}\" alt=\"{attachment.filename}\" style=\"max-width: 100%;\"></li>"
+                else:
+                    transcript += f"<li class=\"my-2\"><strong>Attachment:</strong> <a href=\"{attachment_path}\">{attachment_id}{attachment_extension}</a></li>"
+
+    transcript += "</ul></div></body></html>"
+
+    file_name = os.path.join(folder_path, f"transcript-{unique_id}.html")
+
+    with open(file_name, "w", encoding="utf-8") as f:
+        f.write(transcript)
+
+    return folder_path
 
 @bot.event
 async def on_ready():

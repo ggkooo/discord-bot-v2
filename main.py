@@ -206,6 +206,39 @@ async def on_member_remove(member):
 
     await channel.send(embed=embed)
 
+@bot.event
+async def on_message_edit(before, after):
+    if before.author.bot:
+        return
+
+    notification_channel = bot.get_channel(1354320992180109312)
+    embed = create_embed(
+        title='Mensagem editada',
+        description=f'**Antes:** ```{before.content}```\n**Depois:** ```{after.content}```\n\n**ID da mensagem:** {before.id}\n**Canal:** {before.channel.mention}\n**ID do usuário:** {before.author.id}',
+        footer='Spectre Store © 2025',
+        color='#FB9800'
+    )
+    embed.set_author(name=before.author.display_name, icon_url=before.author.avatar.url)
+
+    await notification_channel.send(embed=embed)
+
+@bot.event
+async def on_message_delete(message):
+    if message.author.bot:
+        return
+
+    notification_channel = bot.get_channel(1354320992180109312)
+    embed = create_embed(
+        title='Mensagem deletada',
+        description=f'**Conteúdo:** ```{message.content}```\n\n**ID da mensagem:** {message.id}\n**Canal:** {message.channel.mention}\n**ID do usuário:** {message.author.id}',
+        footer='Spectre Store © 2025',
+        color='#F91607' # RED
+    )
+    embed.set_author(name=message.author.display_name, icon_url=message.author.avatar.url)
+    embed.set_footer(text=f'')
+
+    await notification_channel.send(embed=embed)
+
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def clear(ctx):

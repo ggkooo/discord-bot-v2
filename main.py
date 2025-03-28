@@ -46,7 +46,7 @@ async def create_ticket_channel(category, ctx, interaction, name):
 
     ticket_channel = await category.create_text_channel(
         name=f'{name}-{interaction.user.name}',
-        topic=f'Ticket criado em {creation_date} | {interaction.user.name} | ID: {interaction.user.id}',
+        topic=f"Ticket de {interaction.user.display_name} | Criado em: {creation_date}",
         overwrites={
             interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
             interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True),
@@ -177,10 +177,51 @@ async def save_transcript(channel):
 async def on_ready():
     print(f'Logged in as {bot.user.name}')
 
+@bot.event
+async def on_member_join(member):
+    now = datetime.now(timezone.utc)
+    days_since_creation = (now - member.created_at).days
+
+    embed = create_embed(
+        title='Entrada no servidor',
+        description=f'{member.mention} | {member.name}\n**Criação:** {days_since_creation} dias atrás',
+        footer='Spectre Store © 2025',
+        color='#1FFB2F'
+    )
+
+    channel = bot.get_channel(1354141477650825448)
+
+    await channel.send(embed=embed)
+
+@bot.event
+async def on_member_remove(member):
+    embed = create_embed(
+        title='Saída do servidor',
+        description=f'{member.mention} | {member.name}',
+        footer='Spectre Store © 2025',
+        color='#BF1622'
+    )
+
+    channel = bot.get_channel(1354316225404076163)
+
+    await channel.send(embed=embed)
+
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def clear(ctx):
     await ctx.channel.purge(limit=100)
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def ban(ctx, member: discord.Member, *, reason=None):
+    await member.ban(reason=reason)
+    embed = create_embed(
+        title='Banido',
+        description=f'{member.mention} foi banido do servidor.',
+        footer='Spectre Store © 2025',
+        color='#BF1622'
+    )
+    await ctx.send(embed=embed)
 
 @bot.command()
 @commands.has_permissions(administrator=True)

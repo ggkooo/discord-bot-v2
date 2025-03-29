@@ -1,16 +1,19 @@
 import asyncio
 import os
 import shutil
-import uuid
 import time
-import aiohttp
-from dotenv import load_dotenv
-from datetime import datetime, timezone
-from pytz import timezone
+import uuid
 
+from datetime import datetime, timezone
+
+import aiohttp
 import discord
 from discord.ext import commands
 from discord.ui import View, Button
+from dotenv import load_dotenv
+from pymongo import MongoClient
+from pymongo.server_api import ServerApi
+from pytz import timezone
 
 load_dotenv()
 
@@ -18,6 +21,31 @@ intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 auto_message_tasks = {}
+
+products = {}
+product_names = []
+
+# MongoDB connection
+try:
+    client = MongoClient(os.getenv('MONGO_URI'), server_api=ServerApi('1'))
+
+    database = client['spectre-store']
+    collection = database['auto-messages']
+
+    all_products = collection.find()
+    for product in all_products:
+        products[product["_name"]] = [
+            product["name"],
+            product["description"],
+            product["image_url"],
+            product["channel"]
+        ]
+
+        product_names.append(product["_name"])
+
+    client.close()
+except Exception as e:
+    print(e)
 
 def create_embed(title: str, description: str, footer: str, color: str, image_url: str = ''):
     embed = discord.Embed(
@@ -303,22 +331,6 @@ async def ticket(ctx):
 
     await ctx.send(embed=embed, view=view)
 
-
-products = {
-    'plus': [
-        '🟢・SPECTRE PLUS',
-        '**Compatibilidade:**\n🇧🇷 Compativel com Windows 10 / Windows 11.\n🇧🇷 Processador : Intel / Amd\n\n**┍Aimbot**\n・Aimbot\n・Recoil Control\n・Draw Fov\n・Draw Crosshair\n・Visibility Check\n・Smoothing Aim\n\n**┍Visuals**\n・Box (3D Box, 2D Box)\n・Team Check\n・Remove Dormant\n・Health\n・Snaplines\n・Distance\n・Skeleton\n・Head Circle\n・Max Distance\n・Visible Color\n・Non Visible Color\n\n**┍Misc**\n・Stream Mode\n・Watermark\n\n```\nR$25.00 - 1 Dia\nR$110.00 - 1 Semana\nR$180.00 - 1 Mês\nR$260.00 - Lifetime```',
-        'https://media.discordapp.net/attachments/1354984897470533812/1354985577253965884/plus.jpg?ex=67e74828&is=67e5f6a8&hm=feaed8433c0b4c0c882da5fcb02fb4478523bf72d4eced1ea633ceb179ab5e27&=&format=webp&width=864&height=864',
-        1354624568190304467
-    ],
-    'aim': [
-        '🟢・SPECTRE AIM',
-        'Compatibilidade:\n🇧🇷 Compativel com Windows 10 / Windows 11.\n🇧🇷 Processador : Intel / Amd\n\n┍Aimbot\n・Aimbot\n・Recoil Control\n・Draw Fov\n・Draw Crosshair\n・Visibility Check\n・Smoothing Aim\n\n┍Misc\n・Stream Mode\n・Watermark\n\n```\nR$20.00 - 1 Dia\nR$40.00 - 1 Semana\nR$70.00 - 1 Mês\nR$150.00 - Lifetime```',
-        'https://media.discordapp.net/attachments/1354984897470533812/1354985573651320962/aim.jpg?ex=67e899a7&is=67e74827&hm=83d5e063837448079c1519328e6e8d1880490e70de65ff9ae3582f90029215cf&=&format=webp&width=864&height=864',
-        1354617502021455985
-    ]
-}
-
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def auto_msg(ctx, name: str='N', interval: int=0, channel: int=0):
@@ -380,8 +392,6 @@ async def all_auto_msg(ctx, interval: int=0):
         await ctx.send(embed=embed)
         return
 
-    product_names = ['plus', 'aim']
-
     for name in product_names:
         p_channel = products[name][3]
         await auto_msg(ctx, name, interval, p_channel)
@@ -399,7 +409,5 @@ async def stop_auto_msg(ctx):
         await ctx.send("Todas as tarefas de mensagens automáticas foram canceladas.")
     else:
         await ctx.send("Nenhuma tarefa de mensagem automática está em execução.")
-
-
 
 bot.run(os.getenv('DISCORD_TOKEN'))

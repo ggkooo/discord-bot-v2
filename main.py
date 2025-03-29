@@ -17,6 +17,8 @@ load_dotenv()
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+auto_message_tasks = {}
+
 def create_embed(title: str, description: str, footer: str, color: str, image_url: str = ''):
     embed = discord.Embed(
         title=title,
@@ -247,15 +249,24 @@ async def clear(ctx):
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def ban(ctx, member: discord.Member, *, reason=None):
-    await member.ban(reason=reason)
-    embed = create_embed(
-        title='Banido',
-        description=f'{member.mention} foi banido do servidor.',
-        footer='Spectre Store © 2025',
-        color='#BF1622'
-    )
-    await ctx.send(embed=embed)
+async def ban(ctx, member: discord.Member=0, *, reason=None):
+    if member != 0:
+        await member.ban(reason=reason)
+        embed = create_embed(
+            title='Banido',
+            description=f'{member.mention} foi banido do servidor.',
+            footer='Spectre Store © 2025',
+            color='#BF1622'
+        )
+        await ctx.send(embed=embed)
+    else:
+        embed = create_embed(
+            title='Erro',
+            description='!ban ID_USUÁRIO',
+            footer='Spectre Store © 2025',
+            color='#BF1622'
+        )
+        await ctx.send(embed=embed)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -294,16 +305,34 @@ async def ticket(ctx):
 
 
 products = {
-    'plus': ['🟢・SPECTRE PLUS',
-             '**Compatibilidade:**\n🇧🇷 Compativel com Windows 10 / Windows 11.\n🇧🇷 Processador : Intel / Amd\n\n**┍Aimbot**\n・Aimbot\n・Recoil Control\n・Draw Fov\n・Draw Crosshair\n・Visibility Check\n・Smoothing Aim\n\n**┍Visuals**\n・Box (3D Box, 2D Box)\n・Team Check\n・Remove Dormant\n・Health\n・Snaplines\n・Distance\n・Skeleton\n・Head Circle\n・Max Distance\n・Visible Color\n・Non Visible Color\n\n**┍Misc**\n・Stream Mode\n・Watermark\n\n```\nR$25.00 - 1 Dia\nR$110.00 - 1 Semana\nR$180.00 - 1 Mês\nR$260.00 - Lifetime```',
-             'https://media.discordapp.net/attachments/1354984897470533812/1354985577253965884/plus.jpg?ex=67e74828&is=67e5f6a8&hm=feaed8433c0b4c0c882da5fcb02fb4478523bf72d4eced1ea633ceb179ab5e27&=&format=webp&width=864&height=864'
-             ]
+    'plus': [
+        '🟢・SPECTRE PLUS',
+        '**Compatibilidade:**\n🇧🇷 Compativel com Windows 10 / Windows 11.\n🇧🇷 Processador : Intel / Amd\n\n**┍Aimbot**\n・Aimbot\n・Recoil Control\n・Draw Fov\n・Draw Crosshair\n・Visibility Check\n・Smoothing Aim\n\n**┍Visuals**\n・Box (3D Box, 2D Box)\n・Team Check\n・Remove Dormant\n・Health\n・Snaplines\n・Distance\n・Skeleton\n・Head Circle\n・Max Distance\n・Visible Color\n・Non Visible Color\n\n**┍Misc**\n・Stream Mode\n・Watermark\n\n```\nR$25.00 - 1 Dia\nR$110.00 - 1 Semana\nR$180.00 - 1 Mês\nR$260.00 - Lifetime```',
+        'https://media.discordapp.net/attachments/1354984897470533812/1354985577253965884/plus.jpg?ex=67e74828&is=67e5f6a8&hm=feaed8433c0b4c0c882da5fcb02fb4478523bf72d4eced1ea633ceb179ab5e27&=&format=webp&width=864&height=864',
+        1354624568190304467
+    ],
+    'aim': [
+        '🟢・SPECTRE AIM',
+        'Compatibilidade:\n🇧🇷 Compativel com Windows 10 / Windows 11.\n🇧🇷 Processador : Intel / Amd\n\n┍Aimbot\n・Aimbot\n・Recoil Control\n・Draw Fov\n・Draw Crosshair\n・Visibility Check\n・Smoothing Aim\n\n┍Misc\n・Stream Mode\n・Watermark\n\n```\nR$20.00 - 1 Dia\nR$40.00 - 1 Semana\nR$70.00 - 1 Mês\nR$150.00 - Lifetime```',
+        'https://media.discordapp.net/attachments/1354984897470533812/1354985573651320962/aim.jpg?ex=67e899a7&is=67e74827&hm=83d5e063837448079c1519328e6e8d1880490e70de65ff9ae3582f90029215cf&=&format=webp&width=864&height=864',
+        1354617502021455985
+    ]
 }
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def auto_msg(ctx, name: str, interval: int):
-    global auto_message_task, send_auto_message
+async def auto_msg(ctx, name: str='N', interval: int=0, channel: int=0):
+    if name == 'N' or interval == 0:
+        embed = create_embed(
+            title='Erro',
+            description='!auto_msg NOME_PRODUTO INTERVALO CANAL',
+            footer='Spectre Store © 2025',
+            color='#BF1622'
+        )
+        await ctx.send(embed=embed)
+        return
+
+    global auto_message_tasks
 
     try:
         embed = create_embed(
@@ -314,23 +343,62 @@ async def auto_msg(ctx, name: str, interval: int):
             color='#840077'
         )
 
-        await ctx.send(embed=embed)
+        target_channel = ctx.channel if channel == 0 else bot.get_channel(channel)
+
+        if target_channel is None:
+            await ctx.send("Erro: Canal inválido ou não encontrado.")
+            return
+
+        await target_channel.send(embed=embed)
 
         async def send_auto_message():
             while True:
-                await ctx.channel.purge(limit=5)
-                await ctx.send(embed=embed)
+                await target_channel.purge(limit=5)
+                await target_channel.send(embed=embed)
                 await asyncio.sleep(interval)
+
+        if target_channel.id in auto_message_tasks and not auto_message_tasks[target_channel.id].done():
+            auto_message_tasks[target_channel.id].cancel()
+
+        auto_message_tasks[target_channel.id] = bot.loop.create_task(send_auto_message())
+        await ctx.send(
+            f'Auto message task started in {target_channel.name} with an interval of {interval} seconds.')
+
     except Exception as error:
         await ctx.send(f'Ocorreu um erro: {str(error)}', ephemeral=True)
 
-    # Start the task
-    auto_message_task = bot.loop.create_task(send_auto_message())
-    await ctx.send(f'Auto message task started with an interval of {interval} seconds.')
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def all_auto_msg(ctx, interval: int=0):
+    if interval == 0:
+        embed = create_embed(
+            title='Erro',
+            description='!all_auto_msg INTERVALO',
+            footer='Spectre Store © 2025',
+            color='#BF1622'
+        )
+        await ctx.send(embed=embed)
+        return
 
+    product_names = ['plus', 'aim']
 
+    for name in product_names:
+        p_channel = products[name][3]
+        await auto_msg(ctx, name, interval, p_channel)
 
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def stop_auto_msg(ctx):
+    global auto_message_tasks
 
+    if auto_message_tasks:
+        for task_id, task in auto_message_tasks.items():
+            if not task.done():
+                task.cancel()
+        auto_message_tasks.clear()
+        await ctx.send("Todas as tarefas de mensagens automáticas foram canceladas.")
+    else:
+        await ctx.send("Nenhuma tarefa de mensagem automática está em execução.")
 
 
 

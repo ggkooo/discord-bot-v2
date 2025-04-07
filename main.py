@@ -66,13 +66,13 @@ class PersistentViewTicket(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="💲 Buy", custom_id="button_buy")
+    @discord.ui.button(label="💲 Comprar", custom_id="button_buy")
     async def button_buy(self, interaction: discord.Interaction, button):
-        await create_ticket_channel(channels['spectre-buy-category'], interaction, 'buy')
+        await create_ticket_channel(channels['spectre-buy-category'], interaction, 'compra')
 
-    @discord.ui.button(label="🔧 Support", custom_id="button_support")
+    @discord.ui.button(label="🔧 Suporte", custom_id="button_support")
     async def button_support(self, interaction: discord.Interaction, button):
-        await create_ticket_channel(channels['spectre-support-category'], interaction, 'support')
+        await create_ticket_channel(channels['spectre-support-category'], interaction, 'suporte')
 
     @discord.ui.button(label="🎥 Media Creator", custom_id="button_media_creator")
     async def button_media_creator(self, interaction: discord.Interaction, button):
@@ -82,7 +82,7 @@ class PersistentViewTicketChannel(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="🕒 Remember", custom_id="button_remember")
+    @discord.ui.button(label="🕒 Lembrar", custom_id="button_remember")
     async def button_remember(self, interaction: discord.Interaction, button):
         try:
             creator_id = get_ticket_owner(interaction.channel)
@@ -90,31 +90,33 @@ class PersistentViewTicketChannel(discord.ui.View):
             interaction.response.send_message(f'{creator} | {creator_id}')
             try:
                 await creator.send(
-                    f'🕒 **Remember:** Don\'t forget your open ticket on the Spectre Store server! {interaction.channel.mention}')
-                await interaction.response.send_message('Reminder sent privately!', ephemeral=True)
+                    f'🕒 **Lembrete:** Não se esqueça do seu ticket aberto no servidor Spectre Store! {interaction.channel.mention}')
+                await interaction.response.send_message('Lembrete enviado com sucesso!', ephemeral=True)
             except discord.Forbidden:
-                await interaction.response.send_message('I couldn\'t send the reminder, DMs are disabled.', ephemeral=True)
+                await interaction.response.send_message('Não consigui enviar, DMs desabilitadas.', ephemeral=True)
             except Exception as e:
-                await interaction.response.send_message(f'An error occurred while trying to send the message: {str(e)}', ephemeral=True)
+                await interaction.response.send_message(f'Um erro ocorreu ao tentar enviar a mensagem: {str(e)}', ephemeral=True)
         except Exception as error:
-            await interaction.followup.send(f'An error occurred: {str(error)}', ephemeral=True)
+            await interaction.followup.send(f'Um erro ocorreu: {str(error)}', ephemeral=True)
 
-    @discord.ui.button(label="❌ Close", custom_id="button_close")
+    @discord.ui.button(label="❌ Fechar", custom_id="button_close")
     async def button_close(self, interaction: discord.Interaction, button):
         user = interaction.user
+        creator_id = get_ticket_owner(interaction.channel)
+        creator = interaction.guild.get_member(creator_id)
 
         folder_path = await save_transcript(interaction.channel)
         zip_path = f"{folder_path}.zip"
         shutil.make_archive(folder_path, 'zip', folder_path)
 
-        await interaction.response.send_message('❌ **Ticket closed!** Transcript saved.', ephemeral=True)
+        await interaction.response.send_message('❌ **Ticket fechado!** Transcript salvo.', ephemeral=True)
 
         notification_channel = bot.get_channel(channels['spectre-logs-ticket'])
         embed = create_embed(
-            title='Ticket Closed',
-            description=f'✅ **Opened by:** {user.mention}\n'
+            title='Ticket Fechado',
+            description=f'✅ **Aberto por:** {creator.mention if creator else "Unknown"}\n'
                         f'⏰ **Data:** {get_ticket_creation_date(interaction.channel)}\n\n'
-                        f'❌ **Closed by:** {interaction.user.mention}\n'
+                        f'❌ **Fechado por:** {interaction.user.mention}\n'
                         f'⏰ **Data:** {datetime.now(timezone("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M:%S")}\n\n'
                         f'📰 **Transcript \t ⤵️**',
             color='#F91607',  # RED
@@ -142,17 +144,17 @@ async def create_ticket_channel(category, interaction, name):
     category = discord.utils.get(interaction.guild.categories, id=category)
 
     if not category:
-        return await interaction.response.send_message("❌ **Error:** The ticket category not found!", ephemeral=True)
+        return await interaction.response.send_message("❌ **ERROR:** Categoria de tickets não encontrada!", ephemeral=True)
 
     for channel in category.text_channels:
         if channel.name == f'{name}-{interaction.user.name}':
-            return await interaction.response.send_message("❌ **Error:** You have an open ticket!", ephemeral=True)
+            return await interaction.response.send_message("❌ **ERROR:** Você já possui um ticket aberto!", ephemeral=True)
 
     creation_date = datetime.now(timezone('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M:%S')
 
     ticket_channel = await category.create_text_channel(
         name=f'{name}-{interaction.user.name}',
-        topic=f"Ticket of {interaction.user.display_name} | User ID: {interaction.user.id} | Created at: {creation_date}",
+        topic=f"Ticket de {interaction.user.display_name} | User ID: {interaction.user.id} | Criado em: {creation_date}",
         overwrites={
             interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
             interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True),
@@ -160,52 +162,48 @@ async def create_ticket_channel(category, interaction, name):
         }
     )
 
-    await interaction.response.send_message(f"✅ **Ticket created successfully!**\n👉 Access your ticket here: {ticket_channel.mention}", ephemeral=True)
+    await interaction.response.send_message(f"✅ **Ticket criado com sucesso!**\n👉 Acesse seu ticket aqui: {ticket_channel.mention}", ephemeral=True)
 
     await new_ticket_channel(ticket_channel, interaction.user, interaction)
 
 async def new_ticket_channel(ticket_channel, user, interaction):
     embed = create_embed(
         title="🎫 - Ticket | Spectre Store",
-        description=f"Hello {interaction.user.mention}, wellcome to your private ticket!\nTicket successfully opened! Our team will assist you in a few moments.",
+        description=f"Olá {interaction.user.mention}, seja bem-vindo ao seu ticket privado!\nTicket aberto com sucesso! Nossa equipe irá lhe atender em alguns instantes.",
         color="#840077" # PURPLE
     )
 
-    await ticket_channel.send(f'{await get_role_mention(interaction, 1354298874008834182)} {interaction.user.mention}', embed=embed, view=PersistentViewTicketChannel()) # f'{discord.utils.get(ctx.guild.roles, id=1354298874008834182).mention} {interaction.user.mention}'
+    await ticket_channel.send(f'{await get_role_mention(interaction, 1241829059617619988)} {await get_role_mention(interaction, 1241829061324574791)} {interaction.user.mention}', embed=embed, view=PersistentViewTicketChannel()) # f'{discord.utils.get(ctx.guild.roles, id=1354298874008834182).mention} {interaction.user.mention}'
 
 async def get_role_mention(interaction: discord.Interaction, role_id):
     guild = interaction.guild
     role = discord.utils.get(guild.roles, id=role_id)
     if role:
         return role.mention
-    return 'Role not found.'
+    return 'Role não encontrado.'
 
 def get_ticket_creation_date(channel):
     if channel.topic:
         parts = channel.topic.split('|')
-        if len(parts) > 1 and 'Created at:' in parts[1]:
-            return parts[1].split('Created at:')[1].strip()
+        if len(parts) > 2 and 'Criado em:' in parts[2]:
+            return parts[2].split('Criado em:')[1].strip()
     return None
-
 
 def get_ticket_owner(channel):
     if channel.topic:
-        # Divide o tópico usando o separador '|'
         parts = channel.topic.split('|')
         if len(parts) > 1 and 'User ID:' in parts[1]:
-            # Extrai o ID do usuário e remove espaços extras
             user_id_str = parts[1].split('User ID:')[1].strip()
-            # Verifica se o ID do usuário é numérico e retorna o valor como inteiro
             if user_id_str.isdigit():
                 return int(user_id_str)
     return None
 
 async def save_transcript(channel):
     messages = [message async for message in channel.history(limit=None)]
-    messages.reverse()  # Reverse the order of messages
+    messages.reverse()
 
     unique_id = uuid.uuid4()
-    folder_path = os.path.join('transcripts', f"transcript-{unique_id}")
+    folder_path = os.path.join('transcripts', f"transcript-{channel.name}-{unique_id}")
     os.makedirs(folder_path, exist_ok=True)
     attachments_folder = os.path.join(folder_path, 'attachments')
     os.makedirs(attachments_folder, exist_ok=True)
@@ -224,7 +222,8 @@ async def save_transcript(channel):
 
     async with aiohttp.ClientSession() as session:
         for message in messages:
-            transcript += f"<li class=\"my-2\"><span class=\"me-2\"><img class=\"rounded-circle\" width=\"35px\" src=\"{message.author.avatar.url}\"></span><strong>{message.author.display_name}</strong>: {message.content}</li>"
+            avatar_url = message.author.avatar.url if message.author.avatar else 'default_avatar_url'
+            transcript += f"<li class=\"my-2\"><span class=\"me-2\"><img class=\"rounded-circle\" width=\"35px\" src=\"{avatar_url}\"></span><strong>{message.author.display_name}</strong>: {message.content}</li>"
 
             # Include embeds
             for embed in message.embeds:
@@ -270,8 +269,8 @@ async def on_member_join(member):
     days_since_creation = (now - member.created_at).days
 
     embed = create_embed(
-        title='Member join',
-        description=f'{member.mention} | {member.name}\n**Criation:** {days_since_creation} days ago',
+        title='Membro entrou',
+        description=f'{member.mention} | {member.name}\n**Criação:** {days_since_creation} dias atrás',
         color='#1FFB2F' # GREEN
     )
 
@@ -282,7 +281,7 @@ async def on_member_join(member):
 @bot.event
 async def on_member_remove(member):
     embed = create_embed(
-        title='Member left',
+        title='Membro saiu',
         description=f'{member.mention} | {member.name}',
         color='#F91607' # RED
     )
@@ -298,8 +297,8 @@ async def on_message_edit(before, after):
 
     notification_channel = bot.get_channel(channels['spectre-anti'])
     embed = create_embed(
-        title='Message edited',
-        description=f'**Before:** ```{before.content}```\n**After:** ```{after.content}```\n\n**Message ID:** {before.id}\n**Channel:** {before.channel.mention}\n**User ID:** {before.author.id}',
+        title='Menssagem editada',
+        description=f'**Antes:** ```{before.content}```\n**Depois:** ```{after.content}```\n\n**Message ID:** {before.id}\n**Canal:** {before.channel.mention}\n**User ID:** {before.author.id}',
         color='#FB9800' # ORANGE
     )
     embed.set_author(name=before.author.display_name, icon_url=before.author.avatar.url)
@@ -313,8 +312,8 @@ async def on_message_delete(message):
 
     notification_channel = bot.get_channel(channels['spectre-anti'])
     embed = create_embed(
-        title='Message deleted',
-        description=f'**Content:** ```{message.content}```\n\n**Message ID:** {message.id}\n**Channel:** {message.channel.mention}\n**User ID:** {message.author.id}',
+        title='Menssagem deletada',
+        description=f'**Conteúdo:** ```{message.content}```\n\n**Message ID:** {message.id}\n**Canal:** {message.channel.mention}\n**User ID:** {message.author.id}',
         color='#F91607' # RED
     )
     embed.set_author(name=message.author.display_name, icon_url=message.author.avatar.url)
@@ -333,14 +332,14 @@ async def ban(ctx, member: discord.Member=0, *, reason=None):
     if member != 0:
         await member.ban(reason=reason)
         embed = create_embed(
-            title='Banned',
-            description=f'{member.mention} has been banned from the server.',
+            title='Banido',
+            description=f'{member.mention} foi banido do servidor.',
             color='#BF1622'
         )
         await ctx.send(embed=embed)
     else:
         embed = create_embed(
-            title='Error',
+            title='ERROR',
             description='!ban ID_USUÁRIO',
             color='#BF1622'
         )
@@ -353,7 +352,7 @@ async def ticket(ctx: commands.Context):
 
     embed = create_embed(
         title="🎫 - Ticket | Spectre Store",
-        description="To ask any questions, have a problem with products or to complete a purchase, open a Ticket!",
+        description="Para tirar dúvidas, tiver algum problema com produtos ou concluir uma compra, abra um Ticket!",
         image_url="https://images-ext-1.discordapp.net/external/QpqlzoPo9OOGCmundGBjnJiPpxivhRFhdB4KdtV8sUg/%3Fsize%3D240%26quot%3B%29%3B/https/cdn.discordapp.com/banners/1215534857254346782/a_b3c434f165c5cd01f3cfe385f85f07ca.gif",
         color="#840077"
     )
@@ -365,7 +364,7 @@ async def ticket(ctx: commands.Context):
 async def auto_msg(ctx, name: str='N', interval: int=0, channel: int=0):
     if name == 'N' or interval == 0:
         embed = create_embed(
-            title='Error',
+            title='ERROR',
             description='!auto_msg PRODUCT_NAME INTERVAL CHANNEL',
             color='#BF1622'
         )
@@ -385,7 +384,7 @@ async def auto_msg(ctx, name: str='N', interval: int=0, channel: int=0):
         target_channel = ctx.channel if channel == 0 else bot.get_channel(channel)
 
         if target_channel is None:
-            await ctx.send("Error: Channel not found")
+            await ctx.send("ERROR: Canal não encontrado.")
             return
 
         await target_channel.send(embed=embed)
@@ -401,17 +400,17 @@ async def auto_msg(ctx, name: str='N', interval: int=0, channel: int=0):
 
         auto_message_tasks[target_channel.id] = bot.loop.create_task(send_auto_message())
         await ctx.send(
-            f'Auto message task started in {target_channel.name} with an interval of {interval} seconds.')
+            f'Task de mensagem automatica iniciada em {target_channel.name} em um intervalo de {interval} segundos.')
 
     except Exception as error:
-        await ctx.send(f'An error occurred: {str(error)}', ephemeral=True)
+        await ctx.send(f'Um erro ocorreu: {str(error)}', ephemeral=True)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def all_auto_msg(ctx, interval: int=0):
     if interval == 0:
         embed = create_embed(
-            title='Error',
+            title='ERROR',
             description='!all_auto_msg INTERVAL',
             color='#BF1622'
         )
@@ -432,8 +431,8 @@ async def stop_auto_msg(ctx):
             if not task.done():
                 task.cancel()
         auto_message_tasks.clear()
-        await ctx.send("All auto message tasks have been stopped.")
+        await ctx.send("Todas as mensagens automáticas foram canceladas.")
     else:
-        await ctx.send("No auto message tasks are running.")
+        await ctx.send("Nenhuma task de mensagem automatica encontrada.")
 
 bot.run(os.getenv('DISCORD_TOKEN'))
